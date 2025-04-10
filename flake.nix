@@ -1,5 +1,5 @@
 {
-  description = "xintray: a status indicator that lives in the tray";
+  description = "xin-status: a management tool for NixOS machines.";
 
   inputs.nixpkgs.url = "nixpkgs/nixos-unstable";
 
@@ -9,39 +9,58 @@
         [ "x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       nixpkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
-    in {
-      packages = forAllSystems (system:
-        let pkgs = nixpkgsFor.${system};
+      fyneBuildDeps = pkgs: with pkgs; [
+        glfw
+        libGL
+        libGLU
+        pkg-config
+        xorg.libXcursor
+        xorg.libXi
+        xorg.libXinerama
+        xorg.libXrandr
+        xorg.libXxf86vm
+        xorg.xinput
 
-        in {
-          xintray = with pkgs;
+        wayland
+        libxkbcommon
+      ];
+    in
+    {
+      nixosModules.default = import ./module.nix;
+      overlays.default = _: prev: { inherit (self.packages.${prev.system}) xin xin-status; };
+      packages = forAllSystems (system:
+        let
+          version = "1.0.0";
+          pkgs = nixpkgsFor.${system};
+        in
+        {
+          xin = with pkgs;
+            perlPackages.buildPerlPackage {
+              pname = "xin";
+              inherit version;
+              src = ./xin;
+              buildInputs = with pkgs; [ perlPackages.JSON procps gawk git ];
+              outputs = [ "out" "dev" ];
+
+              installPhase = ''
+                mkdir -p $out/bin
+                install xin.pl $out/bin/xin
+              '';
+            };
+
+          xin-status = with pkgs;
             buildGoModule rec {
-              pname = "xintray";
-              version = "v0.2.6";
+              pname = "xin-status";
+              inherit version;
+
               src = ./.;
 
-              vendorHash = "sha256-4jal2I2XNEH8xp16w7WixgVr4Jj8shUgNBwTuHAADhw=";
+              vendorHash = "sha256-xmfCLcvCda31i1z+acOqA8IRq9ImexHQorbYulX07/I=";
               proxyVendor = true;
 
               nativeBuildInputs = [ pkg-config copyDesktopItems ];
-              buildInputs = [
-                fyne
-                git
-                glfw
-                libGL
-                libGLU
-                openssh
-                pkg-config
-                xorg.libXcursor
-                xorg.libXi
-                xorg.libXinerama
-                xorg.libXrandr
-                xorg.libXxf86vm
-                xorg.xinput
+              buildInputs = fyneBuildDeps pkgs;
 
-                wayland
-                libxkbcommon
-              ];
 
               buildPhase = ''
                 ${fyne}/bin/fyne package
@@ -54,9 +73,9 @@
                 tar --strip-components=1 -xvf $pkg
               '';
             };
+          default = self.packages.${system}.xin;
         });
 
-      defaultPackage = forAllSystems (system: self.packages.${system}.xintray);
       devShells = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in {
@@ -67,31 +86,51 @@
               echo "Go `${pkgs.go}/bin/go version`"
             '';
             buildInputs = with pkgs; [
-              fyne
-              git
               go
               gopls
               go-tools
               nilaway
-
-              glfw
-              libGL
-              libGLU
-              pkg-config
-              xorg.libXcursor
-              xorg.libXi
-              xorg.libXinerama
-              xorg.libXrandr
-              xorg.libXxf86vm
-              xorg.xinput
-
-              libxkbcommon
-              wayland
-              
               go-font
+            ] ++ (fyneBuildDeps pkgs);
+          };
+        });
+
+      checks = forAllSystems (system:
+        let
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              (_: prev: { inherit (self.packages.${prev.system}) xin xin-status; })
             ];
+          };
+
+        in
+        {
+          xin = pkgs.testers.runNixOSTest {
+            name = "xin-check";
+            testScript = ''
+              machine.start()
+              machine.wait_for_unit("multi-user.target")
+
+              result = machine.succeed("xin | jq -r '.cpu_usage' | grep -E '[0-9]+\.[0-9]+'")
+            '';
+            nodes = {
+              xin = { config, pkgs, lib, ... }:
+                {
+                  imports = [
+                    ./module.nix
+                  ];
+
+                  boot.loader.systemd-boot.enable = true;
+                  boot.loader.efi.canTouchEfiVariables = true;
+
+                  environment.systemPackages = with pkgs; [
+                    jq
+                  ];
+                  programs.xin.enable = true;
+                };
+            };
           };
         });
     };
 }
-

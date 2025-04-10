@@ -1,8 +1,8 @@
-Website = "https://github.com/qbit/xintray"
+Website = "https://github.com/qbit/xin-status"
 
 [Details]
   Icon = "xintray-logo.png"
-  Name = "xintray"
-  ID = "dev.suah.xintray"
+  Name = "xin-status"
+  ID = "dev.suah.xin-status"
   Version = "1.0.0"
   Build = 3

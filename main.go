@@ -43,6 +43,7 @@ type xinStatus struct {
 	cards           []fyne.CanvasObject
 	boundStrings    []binding.ExternalString
 	boundBools      []binding.ExternalBool
+	boundFloats     []binding.ExternalFloat
 	log             *widget.TextGrid
 	repoCommit      commit
 	config          Config
@@ -62,17 +63,18 @@ type Status struct {
 	clientEstablished bool
 	upToDate          bool
 
-	ConfigurationRevision string `json:"configurationRevision"`
-	NeedsRestart          bool   `json:"needs_restart"`
-	NixosVersion          string `json:"nixosVersion"`
-	NixpkgsRevision       string `json:"nixpkgsRevision"`
-	SystemDiff            string `json:"system_diff"`
-	Host                  string `json:"host"`
-	Name                  string `json:"name"`
-	MAC                   string `json:"mac"`
-	Port                  int32  `json:"port"`
-	Uname                 string `json:"uname_a"`
-	Uptime                string `json:"uptime"`
+	ConfigurationRevision string  `json:"configurationRevision"`
+	NeedsRestart          bool    `json:"needs_restart"`
+	NixosVersion          string  `json:"nixosVersion"`
+	NixpkgsRevision       string  `json:"nixpkgsRevision"`
+	SystemDiff            string  `json:"system_diff"`
+	Host                  string  `json:"host"`
+	Name                  string  `json:"name"`
+	MAC                   string  `json:"mac"`
+	Port                  int32   `json:"port"`
+	Uname                 string  `json:"uname_a"`
+	CPUUsage              float64 `json:"cpu_usage"`
+	Uptime                string  `json:"uptime"`
 }
 
 func (s *Status) PrettyName() string {
@@ -305,7 +307,7 @@ func (x *xinStatus) updateHostInfo() error {
 
 			log.Println(reason, err)
 		}
-		ds := fmt.Sprintf("%s:%d", s.Host, s.Port)
+		ds := net.JoinHostPort(s.Host, fmt.Sprintf("%d", s.Port))
 		if !s.clientEstablished {
 			log.Printf("establishing connection to %q", s.Host)
 			wakeButton := widget.NewButton("Wake", func() {
@@ -561,6 +563,11 @@ func buildCards(stat *xinStatus) fyne.CanvasObject {
 		uptimeBStr := binding.BindString(&s.Uptime)
 		uvl := widget.NewLabelWithData(uptimeBStr)
 
+		cpuUsageBFloat := binding.BindFloat(&s.CPUUsage)
+		cpuUsage := widget.NewProgressBarWithData(cpuUsageBFloat)
+		cpuUsage.Max = 100.0
+		cpuUsage.Min = 0.0
+
 		restartBBool := binding.BindBool(&s.NeedsRestart)
 		bbl := widget.NewCheckWithData("Reboot", restartBBool)
 		bbl.Disable()
@@ -569,12 +576,14 @@ func buildCards(stat *xinStatus) fyne.CanvasObject {
 		stat.boundStrings = append(stat.boundStrings, verBStr)
 		stat.boundStrings = append(stat.boundStrings, uptimeBStr)
 		stat.boundBools = append(stat.boundBools, restartBBool)
+		stat.boundFloats = append(stat.boundFloats, cpuUsageBFloat)
 
 		buttonHBox := container.NewHBox()
 
 		card := widget.NewCard(s.PrettyName(), "",
 			container.NewVBox(
 				container.NewHBox(bvl),
+				cpuUsage,
 				container.NewHBox(uvl),
 				container.NewHBox(bbl),
 				container.NewHBox(bsl),
@@ -645,9 +654,9 @@ func buildCards(stat *xinStatus) fyne.CanvasObject {
 }
 
 func main() {
-	log.SetPrefix("xintray: ")
+	log.SetPrefix("xin-status: ")
 	status := &xinStatus{}
-	dataPath := path.Clean(path.Join(os.Getenv("HOME"), ".xin.json"))
+	dataPath := "/etc/xin/xin-status.json"
 	err := status.config.Load(dataPath)
 	if err != nil {
 		log.Fatal(err)
@@ -655,7 +664,7 @@ func main() {
 
 	a := app.New()
 	a.Settings().SetTheme(&xinTheme{})
-	w := a.NewWindow("xintray")
+	w := a.NewWindow("xin-status")
 	if w == nil {
 		log.Fatalln("unable to create window")
 	}
@@ -700,6 +709,9 @@ func main() {
 			for _, s := range status.boundBools {
 				s.Reload()
 			}
+			for _, s := range status.boundFloats {
+				s.Reload()
+			}
 			time.Sleep(3 * time.Second)
 			status.upgradeProgress.Max = status.aliveCount()
 		}
@@ -716,7 +728,7 @@ func main() {
 
 	if desk, ok := a.(desktop.App); ok {
 		iconImg := buildImage(status)
-		m := fyne.NewMenu("xintray",
+		m := fyne.NewMenu("xin-status",
 			fyne.NewMenuItem("Show", func() {
 				w.Show()
 			}),

@@ -52,7 +52,7 @@ A simple management tool for NixOS machines.
     programs.xin-status = {
       enable = true;
       settings = {
-        resopitory = "/path/to/git/clone/";
+        repository = "/path/to/git/clone/";
 	privKeyPath = "/path/to/private/key";
 	flakeRss = "https://github.../main.atom";
 	statuses = [

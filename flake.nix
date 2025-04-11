@@ -24,16 +24,37 @@
         wayland
         libxkbcommon
       ];
+      overlayFunc = _: prev: { inherit (self.packages.${prev.system}) xin xin-status xin-check-restart; };
     in
     {
       nixosModules.default = import ./module.nix;
-      overlays.default = _: prev: { inherit (self.packages.${prev.system}) xin xin-status; };
+      overlays.default = overlayFunc;
       packages = forAllSystems (system:
         let
           version = "1.0.0";
           pkgs = nixpkgsFor.${system};
         in
         {
+          xin-check-restart = pkgs.writeScriptBin "xin-check-restart" ''
+            #!${pkgs.perl}/bin/perl
+
+            use strict;
+            use warnings;
+
+            use feature 'say';
+
+            my @booted = split("/", `readlink -f /run/booted-system/kernel`);
+            my @current = split("/", `readlink -f /run/current-system/kernel`);
+
+            if ($booted[3] ne $current[3]) {
+            	say "Restart required!";
+            	say "old: $booted[3]";
+            	say "new: $current[3]";
+                  exit 1;
+            } else {
+            	say "system is clean..";
+            }
+          '';
           xin = with pkgs;
             perlPackages.buildPerlPackage {
               pname = "xin";
@@ -55,7 +76,7 @@
 
               src = ./.;
 
-              vendorHash = "sha256-xmfCLcvCda31i1z+acOqA8IRq9ImexHQorbYulX07/I=";
+              vendorHash = "sha256-NkNmgxT3jnZC0+vWBDDnmwLPIo55lEtuv22nmM0hkXE=";
               proxyVendor = true;
 
               nativeBuildInputs = [ pkg-config copyDesktopItems ];
@@ -100,7 +121,7 @@
           pkgs = import nixpkgs {
             inherit system;
             overlays = [
-              (_: prev: { inherit (self.packages.${prev.system}) xin xin-status; })
+              overlayFunc
             ];
           };
 
@@ -112,7 +133,8 @@
               machine.start()
               machine.wait_for_unit("multi-user.target")
 
-              result = machine.succeed("xin | jq -r '.cpu_usage' | grep -E '[0-9]+\.[0-9]+'")
+              # if anything comes out over stderr this will make jq barf
+              result = machine.succeed("xin 2>&1 | jq")
             '';
             nodes = {
               xin = { config, pkgs, lib, ... }:
@@ -127,6 +149,13 @@
                   environment.systemPackages = with pkgs; [
                     jq
                   ];
+
+                  nix = {
+                    extraOptions = ''
+                      experimental-features = nix-command flakes
+                    '';
+                  };
+
                   programs.xin.enable = true;
                 };
             };

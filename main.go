@@ -564,9 +564,17 @@ func buildCards(stat *xinStatus) fyne.CanvasObject {
 		uvl := widget.NewLabelWithData(uptimeBStr)
 
 		cpuUsageBFloat := binding.BindFloat(&s.CPUUsage)
-		cpuUsage := widget.NewProgressBarWithData(cpuUsageBFloat)
+		cpuUsage := NewSlimProgressBar(5)
+		cpuUsage.Bind(cpuUsageBFloat)
+
 		cpuUsage.Max = 100.0
 		cpuUsage.Min = 0.0
+
+		cpuUsage.Resize(fyne.Size{
+			Width:  10,
+			Height: 1,
+		})
+		cpuUsage.Refresh()
 
 		restartBBool := binding.BindBool(&s.NeedsRestart)
 		bbl := widget.NewCheckWithData("Reboot", restartBBool)
@@ -582,8 +590,8 @@ func buildCards(stat *xinStatus) fyne.CanvasObject {
 
 		card := widget.NewCard(s.PrettyName(), "",
 			container.NewVBox(
-				container.NewHBox(bvl),
 				cpuUsage,
+				container.NewHBox(bvl),
 				container.NewHBox(uvl),
 				container.NewHBox(bbl),
 				container.NewHBox(bsl),

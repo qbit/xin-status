@@ -39,7 +39,7 @@ sub is_root {
 if ( $command =~ /^status$/ ) {
     my $info = decode_json(`nixos-version --json`);
     $info->{needs_restart} =
-      system('check-restart >/dev/null') == 0 ? JSON::false : JSON::true;
+      system('xin-check-restart >/dev/null') == 0 ? JSON::false : JSON::true;
     my $sys_diff =
       `nix store diff-closures /run/booted-system /run/current-system`;
     $sys_diff =~ s/\e\[[0-9;]*m(?:\e\[K)?//g;

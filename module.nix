@@ -83,7 +83,7 @@ in
   config = mkMerge [
     (mkIf (cfg.enable) {
       users.users.root.openssh.authorizedKeys.keys = mkCommandKeys cfg.monitorKeys;
-      environment.systemPackages = [ pkgs.xin ];
+      environment.systemPackages = [ pkgs.xin pkgs.xin-check-restart ];
     })
     (mkIf (statCfg.enable) {
       environment = {

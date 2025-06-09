@@ -44,6 +44,7 @@ if ( $command =~ /^status$/ ) {
       `nix store diff-closures /run/booted-system /run/current-system`;
     $sys_diff =~ s/\e\[[0-9;]*m(?:\e\[K)?//g;
 
+    $info->{systemctl_failed}     = `systemctl --failed`;
     $info->{system_diff} = encode_base64($sys_diff);
     $info->{uname_a}     = `uname -a`;
     $info->{uptime}      = `uptime`;

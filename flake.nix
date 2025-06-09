@@ -31,8 +31,35 @@
       overlays.default = overlayFunc;
       packages = forAllSystems (system:
         let
-          version = "1.0.0";
+          version = "1.0.1";
           pkgs = nixpkgsFor.${system};
+          mkPkg = { pname, useWayland ? true, ... }@args:
+            with pkgs;
+            buildGoModule (args // {
+              inherit pname version;
+
+              src = ./.;
+
+              vendorHash = "sha256-NkNmgxT3jnZC0+vWBDDnmwLPIo55lEtuv22nmM0hkXE=";
+              proxyVendor = true;
+
+              nativeBuildInputs = [ pkg-config copyDesktopItems ];
+              buildInputs = fyneBuildDeps pkgs;
+
+
+              buildPhase = if useWayland then ''
+                ${fyne}/bin/fyne package --tags wayland
+              '' else ''
+                ${fyne}/bin/fyne package
+              '';
+
+              installPhase = ''
+                mkdir -p $out
+                pkg="$PWD/xin-status.tar.xz"
+                cd $out
+                tar --strip-components=1 -xvf $pkg
+              '';
+            });
         in
         {
           xin-check-restart = pkgs.writeScriptBin "xin-check-restart" ''
@@ -69,31 +96,13 @@
               '';
             };
 
-          xin-status = with pkgs;
-            buildGoModule rec {
-              pname = "xin-status";
-              inherit version;
-
-              src = ./.;
-
-              vendorHash = "sha256-NkNmgxT3jnZC0+vWBDDnmwLPIo55lEtuv22nmM0hkXE=";
-              proxyVendor = true;
-
-              nativeBuildInputs = [ pkg-config copyDesktopItems ];
-              buildInputs = fyneBuildDeps pkgs;
-
-
-              buildPhase = ''
-                ${fyne}/bin/fyne package
-              '';
-
-              installPhase = ''
-                mkdir -p $out
-                pkg="$PWD/${pname}.tar.xz"
-                cd $out
-                tar --strip-components=1 -xvf $pkg
-              '';
-            };
+          xin-status = mkPkg {
+            pname = "xintray";
+          };
+          xin-status-x11 = mkPkg {
+            pname = "xin-status-x11";
+            useWayland = false;
+          };
           default = self.packages.${system}.xin;
         });
 

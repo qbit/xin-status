@@ -3,7 +3,7 @@ module suah.dev/xin-status
 go 1.17
 
 require (
-	fyne.io/fyne/v2 v2.6.0
+	fyne.io/fyne/v2 v2.6.1
 	golang.org/x/crypto v0.33.0
 	golang.org/x/net v0.35.0
 )

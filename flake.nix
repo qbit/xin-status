@@ -40,7 +40,7 @@
 
               src = ./.;
 
-              vendorHash = "sha256-NkNmgxT3jnZC0+vWBDDnmwLPIo55lEtuv22nmM0hkXE=";
+              vendorHash = "sha256-tX/D/CJ+Fr+DkTKlHv4UxlRSwaBsOrr7buPp4Q3ypFU=";
               proxyVendor = true;
 
               nativeBuildInputs = [ pkg-config copyDesktopItems ];

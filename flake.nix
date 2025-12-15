@@ -3,63 +3,86 @@
 
   inputs.nixpkgs.url = "nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
-      supportedSystems =
-        [ "x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
+      supportedSystems = [
+        "x86_64-linux"
+        "x86_64-darwin"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       nixpkgsFor = forAllSystems (system: import nixpkgs { inherit system; });
-      fyneBuildDeps = pkgs: with pkgs; [
-        glfw
-        libGL
-        libGLU
-        pkg-config
-        xorg.libXcursor
-        xorg.libXi
-        xorg.libXinerama
-        xorg.libXrandr
-        xorg.libXxf86vm
-        xorg.xinput
+      fyneBuildDeps =
+        pkgs: with pkgs; [
+          fyne
+          glfw
+          libGL
+          libGLU
+          pkg-config
+          xorg.libXcursor
+          xorg.libXi
+          xorg.libXinerama
+          xorg.libXrandr
+          xorg.libXxf86vm
+          xorg.xinput
 
-        wayland
-        libxkbcommon
-      ];
-      overlayFunc = _: prev: { inherit (self.packages.${prev.system}) xin xin-status xin-check-restart; };
+          wayland
+          libxkbcommon
+        ];
     in
     {
       nixosModules.default = import ./module.nix;
-      overlays.default = overlayFunc;
-      packages = forAllSystems (system:
+      overlays.default = final: prev: {
+        inherit (self.packages.${prev.stdenv.hostPlatform.system}) xin xin-status xin-check-restart;
+      };
+      packages = forAllSystems (
+        system:
         let
           version = "1.0.1";
           pkgs = nixpkgsFor.${system};
-          mkPkg = { pname, useWayland ? true, ... }@args:
+          mkPkg =
+            {
+              pname,
+              useWayland ? true,
+              ...
+            }@args:
             with pkgs;
-            buildGoModule (args // {
-              inherit pname version;
+            buildGoModule (
+              args
+              // {
+                inherit pname version;
 
-              src = ./.;
+                src = ./.;
 
-              vendorHash = null;
-              proxyVendor = true;
+                vendorHash = null;
+                proxyVendor = true;
 
-              nativeBuildInputs = [ pkg-config copyDesktopItems ];
-              buildInputs = fyneBuildDeps pkgs;
+                nativeBuildInputs = [
+                  pkg-config
+                  copyDesktopItems
+                ];
+                buildInputs = fyneBuildDeps pkgs;
 
+                buildPhase =
+                  if useWayland then
+                    ''
+                      ${fyne}/bin/fyne package --tags wayland
+                    ''
+                  else
+                    ''
+                      ${fyne}/bin/fyne package
+                    '';
 
-              buildPhase = if useWayland then ''
-                ${fyne}/bin/fyne package --tags wayland
-              '' else ''
-                ${fyne}/bin/fyne package
-              '';
-
-              installPhase = ''
-                mkdir -p $out
-                pkg="$PWD/xin-status.tar.xz"
-                cd $out
-                tar --strip-components=1 -xvf $pkg
-              '';
-            });
+                installPhase = ''
+                  mkdir -p $out
+                  pkg="$PWD/xin-status.tar.xz"
+                  cd $out
+                  tar --strip-components=1 -xvf $pkg
+                '';
+              }
+            );
         in
         {
           xin-check-restart = pkgs.writeScriptBin "xin-check-restart" ''
@@ -82,13 +105,22 @@
             	say "system is clean..";
             }
           '';
-          xin = with pkgs;
+          xin =
+            with pkgs;
             perlPackages.buildPerlPackage {
               pname = "xin";
               inherit version;
               src = ./xin;
-              buildInputs = with pkgs; [ perlPackages.JSON procps gawk git ];
-              outputs = [ "out" "dev" ];
+              buildInputs = with pkgs; [
+                perlPackages.JSON
+                procps
+                gawk
+                git
+              ];
+              outputs = [
+                "out"
+                "dev"
+              ];
 
               installPhase = ''
                 mkdir -p $out/bin
@@ -103,34 +135,43 @@
             pname = "xin-status-x11";
             useWayland = false;
           };
-          default = self.packages.${system}.xin;
-        });
+          default = self.packages.${pkgs.stdenv.hostPlatform.system}.xin;
+        }
+      );
 
-      devShells = forAllSystems (system:
-        let pkgs = nixpkgsFor.${system};
-        in {
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgsFor.${system};
+        in
+        {
           default = pkgs.mkShell {
             shellHook = ''
               PS1='\u@\h:\@; '
               nix run github:qbit/xin#flake-warn
               echo "Go `${pkgs.go}/bin/go version`"
             '';
-            buildInputs = with pkgs; [
-              go
-              gopls
-              go-tools
-              nilaway
-              go-font
-            ] ++ (fyneBuildDeps pkgs);
+            buildInputs =
+              with pkgs;
+              [
+                go
+                gopls
+                go-tools
+                nilaway
+                go-font
+              ]
+              ++ (fyneBuildDeps pkgs);
           };
-        });
+        }
+      );
 
-      checks = forAllSystems (system:
+      checks = forAllSystems (
+        system:
         let
           pkgs = import nixpkgs {
             inherit system;
             overlays = [
-              overlayFunc
+              self.overlays.default
             ];
           };
 
@@ -146,7 +187,13 @@
               result = machine.succeed("xin 2>&1 | jq")
             '';
             nodes = {
-              xin = { config, pkgs, lib, ... }:
+              xin =
+                {
+                  config,
+                  pkgs,
+                  lib,
+                  ...
+                }:
                 {
                   imports = [
                     ./module.nix
@@ -169,6 +216,7 @@
                 };
             };
           };
-        });
+        }
+      );
     };
 }

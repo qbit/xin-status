@@ -35,7 +35,7 @@
     {
       nixosModules.default = import ./module.nix;
       overlays.default = final: prev: {
-        inherit (self.packages.${prev.stdenv.hostPlatform.system}) xin xin-status xin-check-restart;
+        inherit (self.packages.${prev.stdenv.hostPlatform.system}) xin xin-status xin-status-x11 xin-check-restart;
       };
       packages = forAllSystems (
         system:
@@ -43,46 +43,44 @@
           version = "1.0.1";
           pkgs = nixpkgsFor.${system};
           mkPkg =
-            {
-              pname,
-              useWayland ? true,
-              ...
+            { pname
+            , useWayland ? true
+            , ...
             }@args:
-            with pkgs;
-            buildGoModule (
-              args
-              // {
-                inherit pname version;
+              with pkgs;
+              buildGoModule (
+                args
+                // {
+                  inherit pname version;
 
-                src = ./.;
+                  src = ./.;
 
-                vendorHash = null;
-                proxyVendor = true;
+                  vendorHash = "sha256-TzN+3SqD3WVmBHJTubzS6IBDJIdRf6PbUuPqV9kOjEI=";
 
-                nativeBuildInputs = [
-                  pkg-config
-                  copyDesktopItems
-                ];
-                buildInputs = fyneBuildDeps pkgs;
+                  nativeBuildInputs = [
+                    pkg-config
+                    copyDesktopItems
+                  ];
+                  buildInputs = fyneBuildDeps pkgs;
 
-                buildPhase =
-                  if useWayland then
-                    ''
-                      ${fyne}/bin/fyne package --tags wayland
-                    ''
-                  else
-                    ''
-                      ${fyne}/bin/fyne package
-                    '';
+                  buildPhase =
+                    if useWayland then
+                      ''
+                        ${fyne}/bin/fyne package --tags wayland
+                      ''
+                    else
+                      ''
+                        ${fyne}/bin/fyne package
+                      '';
 
-                installPhase = ''
-                  mkdir -p $out
-                  pkg="$PWD/xin-status.tar.xz"
-                  cd $out
-                  tar --strip-components=1 -xvf $pkg
-                '';
-              }
-            );
+                  installPhase = ''
+                    mkdir -p $out
+                    pkg="$PWD/xin-status.tar.xz"
+                    cd $out
+                    tar --strip-components=1 -xvf $pkg
+                  '';
+                }
+              );
         in
         {
           xin-check-restart = pkgs.writeScriptBin "xin-check-restart" ''
@@ -129,7 +127,7 @@
             };
 
           xin-status = mkPkg {
-            pname = "xintray";
+            pname = "xin-status";
           };
           xin-status-x11 = mkPkg {
             pname = "xin-status-x11";
@@ -188,11 +186,10 @@
             '';
             nodes = {
               xin =
-                {
-                  config,
-                  pkgs,
-                  lib,
-                  ...
+                { config
+                , pkgs
+                , lib
+                , ...
                 }:
                 {
                   imports = [
